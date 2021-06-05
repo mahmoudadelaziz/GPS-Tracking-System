@@ -3,9 +3,13 @@
 #include <string.h>
 #include <stdbool.h>
 
-char data[] = "$GPGLL,4916.45,N,12311.12,W,225444,A";
-char lng[];
-char lat[];
+//GPGLL Message Format:
+//$GPGLL,DDMM.MMMMM,S,DDDMM.MMMMM,S,HHMMSS.SS,S*CC<CR><LF>
+//EXAMPLE = $GPGLL,4916.45,N,12311.12,W,225444,A
+
+char data[60];
+char longitude[12];
+char latitude[10];
 int commas = 0;
 int cnt;
 
@@ -26,28 +30,49 @@ bool gpgll(){
     return false;
 }
 
-void longitude(){
+void ExtractLatitude(){
 
     for(cnt = 7; data[cnt] != ','; cnt++)
-        lat[cnt - 7] += data[cnt];
+        latitude[cnt - 7] += data[cnt];
+} //Supposedly accurate
+
+void ExtractLongitude(){
+	
+	for (int i = 5; i < sizeof(data); i++)
+	{
+		if (data[i] ==  ',') commas++;
+		if (commas == 3)
+		{
+			for (int j = i+1; data[j] != ','; j++)
+			{
+				longitude[j-i-1] = data[j];
+			}
+			break;
+		}
+	}
 }
 
 int main()
 {
-    //printf("Hello world!\n");
-    for(int i = 0; i < 8; i++){
+	fgets(data, sizeof(data), stdin);
+	
+/*     for(int i = 0; i < strlen(data)-1; i++){
         printf("%c", data[i]);
-    }
-    printf("%c", data[i]);
-    while(true){
-        if(gpgll()){
-            printf("Hello world!\n");
-            longitude();
-            printf("%s", lng);
-            system("pause");
-        }
-    }
+    } //Debugging step, printing the array taken from the GPS module, as it is.
+	printf("\n"); */
 
+    if(gpgll())
+	{
+        ExtractLatitude();
+		double LatValue = strtod(latitude, NULL);
+		printf("Latitude: %lf\n", LatValue);
+		
+		ExtractLongitude();
+		double LonValue = strtod(longitude, NULL);
+		printf("Longitude: %lf\n", LonValue);
+		
+        system("pause");
+    }
 
     return 0;
 }
