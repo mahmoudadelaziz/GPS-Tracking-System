@@ -3,7 +3,7 @@
 typedef unsigned int                uint32_t;
 # define __uint32_t_defined
 #endif
-
+#include "tm4c123.h"
 #define pi 3.1415926
 #define earthRadiusKm 6371
 void delay(int);
@@ -18,7 +18,11 @@ void LCD_Command( char);
 void UART2_Init(void);
 char UART2_READ(void);
 void mynum2str(double);
-
+double ExtractLatitude(void);
+double mystrtod(char[]);
+double ExtractLongitude(void);
+void mynum2char(double);
+double degrees(double);
 
 
 
@@ -26,6 +30,7 @@ void mynum2str(double);
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+#include <math.h>
 
 //GPGLL Message Format:
 //$GPGLL,DDMM.MMMMM,S,DDDMM.MMMMM,S,HHMMSS.SS,SCC<CR><LF>
@@ -36,7 +41,7 @@ char longitude[12];
 char latitude[10];
 int commas = 0;
 int cnt;
-char ending2[]="        m";
+char ending2[]="         m";
 bool gpgll(){
 	while(1){
  		int commas2=0;
@@ -52,13 +57,14 @@ bool gpgll(){
                     if(data[4] == 'L'){
 											data[5] = UART2_READ();
                         if(data[5] == 'L'){
-													for (int j = 6; j < 60; j++)
+                            int j;
+							for ( j = 6; j < 60; j++)
                             {
                                 if (data[j] == ',') commas2++;
 															  data[j]= UART2_READ();
                                 if (commas2 == 6){
                                 if( UART2_READ()=='A'){
-																	LCD_data('s');
+																//	LCD_data('s');
 																	commas2=0;
 																	return true;																	
 																}
@@ -75,32 +81,40 @@ bool gpgll(){
 
 }
 
+
 double ExtractLatitude(void){
 	char lat[10];
-    for(int cnt2 = 7; data[cnt2] != ','; cnt2++){
+	int cnt2;
+	//LCD_Command(0x80);
+    for(cnt2 = 7; data[cnt2] != ','; cnt2++){
         lat[cnt2 - 7] = data[cnt2];
+        //LCD_data(data[cnt2]);
 		}
-	return strtod(&lat,NULL);
+ 		
+	return degrees(strtod(lat,NULL));
 }
 
 double ExtractLongitude(void){
 	char lng[20];
 	int commas2 = 0;
-
-	
-	for (int i = 5; i < 60; i++)
+    //LCD_Command(0xC0);
+	int i;
+	for (i = 5; i < 60; i++)
 	{
 		if (data[i] ==  ',') commas2++;
 		if (commas2 == 3)
 		{
-			for (int j = i+1; data[j] != ','; j++)
+		    int j;
+			for (j = i+1; data[j] != ','; j++)
 			{
 				lng[j-i-1] = data[j];
+				
+               // LCD_data(data[j]);
 			}
 			break;
 		}
 	}
-	return strtod(&lng,NULL);
+	return degrees(strtod(lng,NULL));
 }
 
 double degreesToRadians(double degrees) {
@@ -109,7 +123,6 @@ double degreesToRadians(double degrees) {
 
 
 double distance(double lat1, double lon1, double lat2, double lon2) {
-
 	double dLat = degreesToRadians(lat2-lat1);
 	double dLon = degreesToRadians(lon2-lon1);
 
@@ -119,7 +132,8 @@ double distance(double lat1, double lon1, double lat2, double lon2) {
 	  double a = sin(dLat/2) * sin(dLat/2) +
 			  sin(dLon/2) * sin(dLon/2) * cos(lat1) * cos(lat2); 
 	  double c = 2 * atan2(sqrt(a), sqrt(1-a)); 
-	  return (earthRadiusKm * c);
+	 // LCD_data('x');
+	  return (earthRadiusKm * c*1000);
 }
 
 
@@ -127,6 +141,7 @@ double distance(double lat1, double lon1, double lat2, double lon2) {
 
 int main(void)
 {
+	SCB->CPACR |= ((3UL << 10*2) | (3UL << 11*2) );
 	PortA_Init();
 	PortB_Init();
 	PortF_Init();
@@ -134,14 +149,14 @@ int main(void)
 	PortF_Output(0x04);
 	delay(1000);
   
-	PortF_Output(0x02);
+
 	//delay(1000);
 UART2_Init();
 double d=0;
-		double lat1;
-	double long1;
-	double lat2;
-	double long2;
+		double lat1 =0;
+	double long1 = 0;
+	double lat2 = 0;
+	double long2 = 0;
 	while(1){
 	if(gpgll()){
 	lat1 =ExtractLatitude();
@@ -156,11 +171,16 @@ if(gpgll()){
 	lat2 =ExtractLatitude();
 	long2 =ExtractLongitude();
    d += distance(lat1,long1,lat2,long2);
+ if (	d > 100){	PortF_Output(0x04);}
   mynum2str(d);
-	for(int i =0; i<10; i++){
+  int i;
+  LCD_Command(0x80);
+	for(i =0; i<10; i++){
 	LCD_data(ending2[i]);}
 	lat1 =lat2;
 	long1 = long2;
+	delay(5000);
+	
 	
 	
 		
@@ -177,7 +197,8 @@ if(gpgll()){
 
 void delay(int x)
 {
-	for(int i = 0; i<x*886;i++)
+    int i;
+	for(i = 0; i<x*886;i++)
 	{
 		GPIO_PORTF_DATA_R |= 0;
 	}
@@ -306,55 +327,175 @@ void UART2_Init(void){
 
 void mynum2str(double number)
 {
-		int iii =0;
-		for(;iii<8;iii++)ending2[iii] =' ';
-    double x = number - (int)number;
-    char revstr[4];
-    char str[4];
-    char str2[3];
-    int length = 0;
-    int length2 = 0;
-    int length3 = 0;
+	
+	int iii = 0;
+	for (;iii < 9;iii++) ending2[iii] = ' ';
+	if(number !=0){
+	double x = number - (int)number;
+	char revstr[]="    ";
+	char str[]="    ";
+	char str2[]="   ";
+	int length = 0;
+	int length2 = 0;
+	int length3 = 0;
 
-    while ((int)number > 0)
-    {
-        int a = (int)number % 10;
-        str[length++] = a | '0';
-        number /= 10;
-    }
-    x *= 10;
-    int i = 0;
-    while (i < 3)
-    {
-        int a = (int)x % 10;
-        str2[length2++] = a | '0';
-        x *= 10;
-        i++;
-    }
-    length--;
-    int rev = 0;
-    while (length >= 0)
-    {
-        revstr[rev++] = str[length--];
-    }
-    i = 0;
-    while (revstr[i] >= 48 && revstr[i] <= 57)
-    {
-        ending2[length3++] = revstr[i++];
-    }
-    ending2[length3++] = '.';
-    i = 0;
-    while (str2[i] >= 48 && str2[i] <= 57)
-    {
-        ending2[length3++] = str2[i++];
-    }
+	while ((int)number > 0)
+	{
+		int a = (int)number % 10;
+		str[length++] = a + 48;
+		number /= 10;
+	}
+	x *= 10;
+	int i = 0;
+	while (i < 3)
+	{
+		int a = (int)x % 10;
+		str2[length2++] = a + 48;
+		x *= 10;
+		i++;
+	}
+	length--;
+	int rev = 0;
+	while (length >= 0)
+	{
+		revstr[rev++] = str[length--];
+	}
+	i = 0;
+	while (revstr[i] >= 48 && revstr[i] <= 57)
+	{
+		ending2[length3++] = revstr[i++];
+	}
+	ending2[length3++] = '.';
+	i = 0;
+	while (str2[i] >= 48 && str2[i] <= 57)
+	{
+		ending2[length3++] = str2[i++];
+	}
+	}
+	else {
+	    ending2[0] = 'a';
+	    ending2[1] = '7';
+	    ending2[2] = 'a';
+	}
+}
+void mynum2char(double dist)
+{
+
+    int ii = 0;
+    int jj = 1;
+		if (dist >=10000)
+		{
+			char Overflow[] = "OVER FLOW ";
+			while(ii<sizeof(ending2)-1)
+			{
+				ending2[ii] = Overflow[ii];
+			}
+		}
+		else
+		{
+			if ((int) dist / 1000)
+			{
+					ending2[ii] = (int) dist / 1000 + 48;  
+					jj = 0;
+			}
+			else if(dist <1000 && jj)
+			{
+				ending2[ii] = ' ';//905
+			}
+			else
+			{
+				ending2[ii] = '0';
+			}
+			dist = dist - ((int) dist / 1000) * 1000;
+			ii++;
+			if ((int) dist / 100)
+			{
+					ending2[ii] = (int) dist / 100 + 48;
+					jj = 0;
+			}
+			else if(dist <100 && jj)
+			{
+				ending2[ii] = ' ';
+			}
+			else
+			{
+				ending2[ii] = '0';
+			}
+			dist = dist - ((int) dist / 100) * 100;
+			ii++;
+			if ((int) dist / 10)
+			{
+					ending2[ii] = (int) dist / 10 + 48;
+					jj = 0;
+			}
+			else if(dist <10 && jj)
+			{
+				ending2[ii] = ' ';
+			}
+			else
+			{
+				ending2[ii] = '0';
+			}
+			dist = dist - ((int) dist / 10) * 10;
+			ii++;
+			if ((int) dist)
+			{
+					ending2[ii] = (int) dist + 48;
+			}
+			else
+			{
+				ending2[ii] = '0';
+			}
+			dist = dist - (int) dist;
+			ending2[++ii]='.';
+			ii++;
+			if ((int) (10 * dist))
+			{
+					ending2[ii] = (int) (10 * dist) + 48;
+			}
+			else
+			{
+				ending2[ii] = '0';
+			}
+			dist = dist - ((int) (10 * dist)) / (double) 10;
+			ii++;
+			if ((int) (100 * dist))
+			{
+					ending2[ii] = (int) (100 * dist) + 48;
+			}
+			else
+			{
+				ending2[ii] = '0';
+			}
+			dist = dist - ((int) (100 * dist)) / (double) 100;
+			ii++;
+			if ((int) (1000 * dist))
+			{
+					ending2[ii] = (int) (1000 * dist) + 48;	
+			}
+			else
+			{
+				ending2[ii] = '0';
+			}
+		}
+		
+
+}
+
+double degrees(double x)
+{
+    double degs = 0;
+    int temp = x / 100;
+    degs = temp + (x - 100 * temp) / 60.0;
+
+    return degs;
 }
 
 
 char UART2_READ(void)
 {
     char data;
-      while((UART2_FR_R&0x10) !=0){} 
+                  while((UART2_FR_R&0x10) !=0){} 
        data = (UART2_DR_R&0xFF) ;      
     return  data; 
 }
@@ -365,3 +506,4 @@ void write_UART(char data)
     while((UART2_FR_R&0x20) !=0){}
     UART2_DR_R = data;
 }
+
