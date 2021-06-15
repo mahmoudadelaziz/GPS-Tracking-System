@@ -1,5 +1,8 @@
 #Python equivalent of the ExtractLatitude() and ExtractLongitude() functions
-FromGPS = "$GPGLL,4916.45,N,12311.12,W,225444,A" #Dummy input
+FromGPS = ['$', 'G', 'P', 'G', 'L', 'L', ',',
+ '4', '9', '1', '6', '.', '4', '5', ',', 'N',
+ ',', '1', '2', '3', '1', '1', '.', '1', '2', ',', 'W',
+ ',', '2', '2', '5', '4', '4', '4', ',', 'A'] #Dummy input
 
 def iter_starting_at(start_pos, string):
     for i in range(start_pos, len(string)):
@@ -10,10 +13,14 @@ TakenLongitude = ""
 CommaCount = 0
 
 #ExtractLatitude()
-for character in iter_starting_at(7, FromGPS):
-    if(character == ','):
-    	break
-    TakenLatitude = TakenLatitude + character
+for y in FromGPS:
+	if (counter > 1):
+        break
+    if(y == ','):
+        counter = counter + 1
+        if(counter == 1):
+            TakenLatitude = TakenLatitude + y
+    
         
 #ExtractLongitude()        
 for x in FromGPS:
